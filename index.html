@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dot Server</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .modal {
+            display: flex;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            width: 300px;
+        }
+
+        input[type="text"] {
+            width: 80%;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin-top: 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        #serverArea {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dot {
+            width: 30px;
+            height: 30px;
+            background-color: #007bff;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .dot span {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: white;
+            padding: 2px 5px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+
+        #joystick {
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            width: 100px;
+            height: 100px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 50%;
+            touch-action: none;
+        }
+
+        #stick {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background-color: #007bff;
+            border-radius: 50%;
+            top: 25px;
+            left: 25px;
+            transform: translate(-50%, -50%);
+            transition: all 0.1s;
+        }
+
+        #chatContainer {
+            position: fixed;
+            bottom: 150px;
+            left: 30px;
+            width: 300px;
+        }
+
+        #chatMessages {
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: white;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 10px;
+        }
+
+        #chatMessages p {
+            margin: 5px 0;
+        }
+
+        #chatInput {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div id="usernameInput" class="modal">
+        <div class="modal-content">
+            <h2>Enter Your Username</h2>
+            <input type="text" id="username" placeholder="Enter Username">
+            <button id="joinButton">Join Server</button>
+        </div>
+    </div>
+    <div id="serverArea">
+        <!-- Users will be displayed here as dots -->
+    </div>
+    <div id="joystick">
+        <div id="stick"></div>
+    </div>
+    <div id="chatContainer">
+        <div id="chatMessages"></div>
+        <input type="text" id="chatInput" placeholder="Type a message...">
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const usernameInput = document.getElementById('usernameInput');
+            const joinButton = document.getElementById('joinButton');
+            const serverArea = document.getElementById('serverArea');
+            const stick = document.getElementById('stick');
+            const joystick = document.getElementById('joystick');
+            const chatMessages = document.getElementById('chatMessages');
+            const chatInput = document.getElementById('chatInput');
+
+            let currentUsername = localStorage.getItem('username');
+            let userDot;
+
+            if (!currentUsername || currentUsername === "Abun") {
+                localStorage.removeItem('username');
+                currentUsername = null;
+            }
+
+            if (currentUsername) {
+                joinServer(currentUsername);
+            } else {
+                usernameInput.style.display = 'flex';
+            }
+
+            joinButton.addEventListener('click', function() {
+                const username = document.getElementById('username').value;
+                if (username.trim() !== "") {
+                    localStorage.setItem('username', username);
+                    joinServer(username);
+                    usernameInput.style.display = 'none';
+                }
+            });
+
+            function joinServer(username) {
+                userDot = document.createElement('div');
+                userDot.className = 'dot';
+                userDot.innerHTML = `<span>${username}</span>`;
+                serverArea.appendChild(userDot);
+                addJoystickControls(userDot);
+            }
+
+            function addJoystickControls(dot) {
+                let startX, startY, intervalId;
+
+                joystick.addEventListener('touchstart', function(e) {
+                    e.preventDefault();
+                    startX = e.touches[0].clientX;
+                    startY = e.touches[0].clientY;
+
+                    intervalId = setInterval(function() {
+                        const moveX = stick.getBoundingClientRect().left - joystick.getBoundingClientRect().left - 25;
+                        const moveY = stick.getBoundingClientRect().top - joystick.getBoundingClientRect().top - 25;
+
+                        const dotX = dot.offsetLeft + moveX / 20;  // Adjust the sensitivity by changing the divisor
+                        const dotY = dot.offsetTop + moveY / 20;
+
+                        dot.style.left = `${Math.min(Math.max(dotX, 0), serverArea.clientWidth - dot.clientWidth)}px`;
+                        dot.style.top = `${Math.min(Math.max(dotY, 0), serverArea.clientHeight - dot.clientHeight)}px`;
+                    }, 50); // Controls how frequently the dot moves
+                });
+
+                joystick.addEventListener('touchmove', function(e) {
+                    e.preventDefault();
+                    const moveX = e.touches[0].clientX - startX;
+                    const moveY = e.touches[0].clientY - startY;
+
+                    stick.style.transform = `translate(${moveX}px, ${moveY}px)`;
+                });
+
+                joystick.addEventListener('touchend', function() {
+                    stick.style.transform = `translate(0, 0)`;
+                    clearInterval(intervalId);
+                });
+            }
+
+            chatInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && chatInput.value.trim() !== '') {
+                    const message = document.createElement('p');
+                    message.textContent = chatInput.value;
+                    chatMessages.appendChild(message);
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                    chatInput.value = '';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
